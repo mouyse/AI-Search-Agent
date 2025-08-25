@@ -1,38 +1,54 @@
-# AI Search Agent
+# AI Search Agent (ReAct + Tavily + Pydantic)
 
-This project is a simple **AI-powered search agent** built with **LangChain**, **OpenAI GPT-4**, and **TavilySearch**.  
-It demonstrates how to use LangChain's ReAct agent architecture with custom tools to perform intelligent searches.
+An AI-powered search agent built with **LangChain**, **OpenAI GPT-4**, and **TavilySearch**.
+It uses a **custom ReAct prompt** and a **Pydantic output parser** to return structured answers
+with sources.
 
 ---
 
 ## Features
-- Integrates **LangChain** with **OpenAI GPT-4** for reasoning and task execution.
-- Uses **TavilySearch** as a search tool for real-time information retrieval.
-- Demonstrates **ReAct Agent** pattern (Reasoning + Acting).
-- Loads API keys and configuration from environment variables.
-- Example: Search for 10 beginner LLM Engineer paid internship opportunities in Bengaluru.
+- Real-time web search via **TavilySearch**.
+- **ReAct**-style reasoning with **LangChain**.
+- **Structured outputs** using `PydanticOutputParser` and a custom `AgentResponse` schema.
+- Clean separation of concerns: prompt (`prompt.py`), schema (`schemas.py`), app (`main.py`).
+
+---
+
+## Project Structure
+```
+.
+├── main.py            # Builds the ReAct agent with custom prompt + Pydantic parser
+├── schemas.py         # Pydantic models: AgentResponse (answer + sources), Source
+├── prompt.py          # REACT_PROMPT_WITH_FORMAT_INSTRUCTIONS (custom prompt template)
+├── .env.example       # Example env vars
+├── pyproject.toml     # Dependencies & metadata (Python >= 3.13)
+└── README.md          # This file
+```
 
 ---
 
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/aisearchagent.git
-   cd aisearchagent
-   ```
+### 1) Create & activate a virtual environment
+```bash
+python -m venv .venv
+# macOS/Linux
+source .venv/bin/activate
+# Windows
+.venv\Scripts\activate
+```
 
-2. Create a virtual environment and activate it:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate   # Linux / macOS
-   venv\Scripts\activate    # Windows
-   ```
+### 2) Install dependencies
 
-3. Install dependencies (managed via `pyproject.toml`):
-   ```bash
-   pip install -e .
-   ```
+**Option A (requirements.txt):**
+```bash
+pip install -r requirements.txt
+```
+
+**Option B (from pyproject deps directly):**
+```bash
+pip install "black>=25.1.0" "isort>=6.0.1"             "langchain>=0.3.27" "langchain-openai>=0.3.31"             "langchain-tavily>=0.2.11" "python-dotenv>=1.1.1"
+```
 
 ---
 
@@ -50,53 +66,62 @@ LANGSMITH_PROJECT=
 
 ---
 
-## Usage
+## How It Works
 
-Run the project with:
+### 1) Custom Prompt + Format Instructions
+`prompt.py` defines `REACT_PROMPT_WITH_FORMAT_INSTRUCTIONS`, extending the classic ReAct template.
+In `main.py`, a `PromptTemplate` injects the **format instructions** produced by the
+`PydanticOutputParser`, so the agent returns structured JSON matching `AgentResponse`.
+
+### 2) Pydantic Output Schema
+`schemas.py` contains:
+- `Source` with a single field: `url: str`
+- `AgentResponse` with fields:
+  - `answer: str`
+  - `sources: List[Source]` (defaults to an empty list)
+
+### 3) Agent Assembly
+`main.py` wires everything together:
+- Loads env vars with `python-dotenv`.
+- Initializes `ChatOpenAI(model="gpt-4")` and `TavilySearch()` as the tool.
+- Wraps the prompt with format instructions from `PydanticOutputParser(AgentResponse)`.
+- Builds a ReAct agent and executes it through `AgentExecutor`.
+
+---
+
+## Run
 
 ```bash
 python main.py
 ```
 
-### Example Query
-The current default query is:
-```text
-Search for 10 beginner LLM Engineer paid internship opportunities focusing on LangChain in Bengaluru and list their details
+By default, `main.py` asks:
+> Search for 10 beginner LLM Engineer paid internship opportunities focusing on LangChain in Bengaluru and list their details
+
+The agent will call Tavily, reason using ReAct, and return a structured response (answer + sources).
+
+---
+
+## Modifying the Query
+
+Open `main.py` and change the `input` value passed to `chain.invoke(...)`. Example:
+
+```python
+result = chain.invoke(
+    input={
+        "input": "Find 5 recent LangChain tutorials and list their titles and URLs"
+    }
+)
 ```
 
-You can modify the input in `main.py` to perform custom searches.
+---
+
+## Notes & Tips
+- **TavilySearch** requires a valid `TAVILY_API_KEY` in `.env`.
+- If you enable LangSmith tracing, set `LANGSMITH_TRACING=true` and provide `LANGSMITH_API_KEY` + `LANGSMITH_PROJECT`.
+- Keep versions flexible (as in `pyproject.toml`) for easier upgrades, or pin exact versions in `requirements.txt` for reproducibility.
 
 ---
 
-## Project Structure
-
-```
-.
-├── main.py             # Main application entry point
-├── pyproject.toml      # Project dependencies & metadata
-├── .env.example        # Example environment variables
-├── README.md           # Documentation
-└── venv/               # Virtual environment (ignored in VCS)
-```
-
----
-
-## Next Steps
-- Add support for multiple search tools (Google, Bing, Tavily, etc.).
-- Implement user input instead of hardcoded queries.
-- Extend with summarization and ranking of search results.
-- Build a simple web UI for user interaction.
-
----
-
-### Tech Stack
-- Python 3.13+
-- LangChain
-- OpenAI GPT-4
-- TavilySearch
-- dotenv
-
----
-
-### License
-This project is licensed under the MIT License.
+## License
+MIT
